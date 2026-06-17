@@ -1,0 +1,197 @@
+"""
+Flask app for browsing the movies SQLite database (movies.db).
+
+Endpoints:
+    GET /                -> movie browser (search, sort, pagination)
+    GET /movie/<id>      -> detail page for a single movie
+    GET /api/movies      -> JSON list of movies (search, sort, pagination)
+    GET /api/movie/<id>  -> JSON detail for a single movie
+    GET /api/stats       -> JSON summary stats (counts, genres, etc.)
+"""
+
+import os
+import sqlite3
+import math
+from flask import Flask, jsonify, request, render_template, g, abort
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(BASE_DIR, "movies.db")
+
+app = Flask(__name__)
+
+PAGE_SIZE = 24
+
+SORT_OPTIONS = {
+    "title": "title ASC",
+    "rating_desc": "rating DESC",
+    "rating_asc": "rating ASC",
+    "votes_desc": "votes DESC",
+    "newest": "release_date DESC",
+    "oldest": "release_date ASC",
+}
+
+
+def get_db():
+    if "db" not in g:
+        if not os.path.exists(DB_PATH):
+            raise RuntimeError(
+                "movies.db not found. Run 'python build_db.py' first."
+            )
+        g.db = sqlite3.connect(DB_PATH)
+        g.db.row_factory = sqlite3.Row
+    return g.db
+
+
+@app.teardown_appcontext
+def close_db(exception=None):
+    db = g.pop("db", None)
+    if db is not None:
+        db.close()
+
+
+def query_movies(search="", genre="", sort="title", page=1, page_size=PAGE_SIZE):
+    db = get_db()
+    where_clauses = []
+    params = []
+
+    if search:
+        where_clauses.append("title LIKE ?")
+        params.append(f"%{search}%")
+
+    if genre:
+        where_clauses.append("genres LIKE ?")
+        params.append(f"%{genre}%")
+
+    where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
+    order_sql = SORT_OPTIONS.get(sort, SORT_OPTIONS["title"])
+
+    total = db.execute(
+        f"SELECT COUNT(*) FROM movies {where_sql}", params
+    ).fetchone()[0]
+
+    total_pages = max(1, math.ceil(total / page_size))
+    page = max(1, min(page, total_pages))
+    offset = (page - 1) * page_size
+
+    rows = db.execute(
+        f"""
+        SELECT id, title, release_date, rating, votes, genres, duration, directed_by
+        FROM movies
+        {where_sql}
+        ORDER BY {order_sql}
+        LIMIT ? OFFSET ?
+        """,
+        params + [page_size, offset],
+    ).fetchall()
+
+    return {
+        "movies": [dict(r) for r in rows],
+        "total": total,
+        "page": page,
+        "total_pages": total_pages,
+        "page_size": page_size,
+    }
+
+
+@app.route("/")
+def index():
+    search = request.args.get("q", "").strip()
+    genre = request.args.get("genre", "").strip()
+    sort = request.args.get("sort", "title")
+    page = request.args.get("page", 1, type=int)
+
+    result = query_movies(search=search, genre=genre, sort=sort, page=page)
+
+    genres = get_all_genres()
+
+    return render_template(
+        "index.html",
+        movies=result["movies"],
+        total=result["total"],
+        page=result["page"],
+        total_pages=result["total_pages"],
+        search=search,
+        genre=genre,
+        sort=sort,
+        genres=genres,
+    )
+
+
+@app.route("/movie/<int:movie_id>")
+def movie_detail(movie_id):
+    db = get_db()
+    row = db.execute("SELECT * FROM movies WHERE id = ?", (movie_id,)).fetchone()
+    if row is None:
+        abort(404)
+    return render_template("detail.html", movie=dict(row))
+
+
+def get_all_genres(limit=30):
+    """Return a sorted list of distinct individual genre tags."""
+    db = get_db()
+    rows = db.execute("SELECT DISTINCT genres FROM movies WHERE genres != ''").fetchall()
+    genre_set = set()
+    for r in rows:
+        for g_ in str(r["genres"]).split(","):
+            g_ = g_.strip()
+            if g_:
+                genre_set.add(g_)
+    return sorted(genre_set)[:limit]
+
+
+@app.route("/api/movies")
+def api_movies():
+    search = request.args.get("q", "").strip()
+    genre = request.args.get("genre", "").strip()
+    sort = request.args.get("sort", "title")
+    page = request.args.get("page", 1, type=int)
+    page_size = request.args.get("page_size", PAGE_SIZE, type=int)
+    page_size = max(1, min(page_size, 100))
+
+    result = query_movies(search=search, genre=genre, sort=sort, page=page, page_size=page_size)
+    return jsonify(result)
+
+
+@app.route("/api/movie/<int:movie_id>")
+def api_movie_detail(movie_id):
+    db = get_db()
+    row = db.execute("SELECT * FROM movies WHERE id = ?", (movie_id,)).fetchone()
+    if row is None:
+        return jsonify({"error": "Movie not found"}), 404
+    return jsonify(dict(row))
+
+
+@app.route("/api/stats")
+def api_stats():
+    db = get_db()
+    total = db.execute("SELECT COUNT(*) FROM movies").fetchone()[0]
+    avg_rating = db.execute("SELECT AVG(rating) FROM movies WHERE rating IS NOT NULL").fetchone()[0]
+    top_rated = db.execute(
+        "SELECT title, rating FROM movies WHERE votes > 1000 ORDER BY rating DESC LIMIT 5"
+    ).fetchall()
+    return jsonify({
+        "total_movies": total,
+        "average_rating": round(avg_rating, 2) if avg_rating else None,
+        "top_rated": [dict(r) for r in top_rated],
+        "genres": get_all_genres(),
+    })
+
+
+@app.route("/api/health")
+def health():
+    db_exists = os.path.exists(DB_PATH)
+    count = None
+    if db_exists:
+        try:
+            count = get_db().execute("SELECT COUNT(*) FROM movies").fetchone()[0]
+        except Exception:
+            db_exists = False
+    return jsonify({
+        "status": "ok" if db_exists else "missing_db",
+        "db_path": DB_PATH,
+        "movie_count": count,
+    })
+
+
+if __name__ == "__main__":
+    app.run(debug=True, host="0.0.0.0", port=5001)
