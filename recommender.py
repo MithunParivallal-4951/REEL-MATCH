@@ -21,8 +21,8 @@ from sklearn.metrics.pairwise import cosine_similarity
 from model.posters import get_poster_url, prefetch_posters
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_PATH = os.path.join(BASE_DIR, "..", "data", "movies.csv")
-MODEL_PATH = os.path.join(BASE_DIR, "movie_recommender.pkl")
+DATA_PATH = os.path.join(BASE_DIR, "data", "movies.csv")
+MODEL_PATH = os.path.join(BASE_DIR, "model", "movie_recommender.pkl")
 
 
 # Simple genre -> (emoji, gradient) theme used to render a "poster" for

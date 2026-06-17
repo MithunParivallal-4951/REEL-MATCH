@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reel Match — Movie Recommender</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Libre+Franklin:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    /* Palette: marquee / velvet cinema */
+    --bg:        #0e0d11;
+    --bg-soft:   #15131a;
+    --panel:     #1c1a22;
+    --panel-2:   #242029;
+    --line:      #34303c;
+    --line-soft: #2a2630;
+    --cream:     #f6f1e7;
+    --cream-dim: #cfc8ba;
+    --muted:     #948e9c;
+    --gold:      #e7b65c;
+    --gold-dim:  #b78a3f;
+    --marquee:   #ff5d73;
+    --marquee-2: #ffd66b;
+    --ok:        #59c896;
+
+    --radius-sm: 8px;
+    --radius-md: 14px;
+    --radius-lg: 22px;
+
+    --container: 1120px;
+
+    --shadow-1: 0 1px 2px rgba(0,0,0,.4);
+    --shadow-2: 0 12px 32px -16px rgba(0,0,0,.6);
+    --shadow-glow: 0 0 40px -6px rgba(231,182,92,.35);
+  }
+
+  *{ box-sizing: border-box; }
+  html{ scroll-behavior: smooth; }
+
+  body{
+    margin:0;
+    background:
+      radial-gradient(1200px 600px at 50% -10%, rgba(231,182,92,.10), transparent 60%),
+      radial-gradient(900px 500px at 100% 10%, rgba(255,93,115,.08), transparent 55%),
+      var(--bg);
+    color: var(--cream);
+    font-family: 'Libre Franklin', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    min-height:100vh;
+    line-height: 1.5;
+  }
+
+  a{ color: inherit; }
+
+  ::selection{ background: var(--gold); color: #1a1a1a; }
+
+  :focus-visible{
+    outline: 2px solid var(--gold);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* ============ Marquee bulb strip ============ */
+  .bulbstrip{
+    height: 6px;
+    background:
+      repeating-linear-gradient(
+        to right,
+        var(--gold) 0 8px,
+        transparent 8px 22px
+      );
+    opacity: .55;
+  }
+
+  /* ============ Header ============ */
+  header{
+    text-align:center;
+    padding: clamp(40px, 8vw, 76px) 20px clamp(28px, 5vw, 40px);
+    position: relative;
+  }
+  .eyebrow{
+    display:inline-flex;
+    align-items:center;
+    gap: 10px;
+    letter-spacing:.32em;
+    font-size: clamp(.62rem, 1.4vw, .72rem);
+    color: var(--gold);
+    text-transform:uppercase;
+    margin-bottom: 18px;
+    font-weight: 600;
+  }
+  .eyebrow::before,
+  .eyebrow::after{
+    content:"";
+    width: 28px;
+    height: 1px;
+    background: linear-gradient(to right, transparent, var(--gold));
+  }
+  .eyebrow::after{ background: linear-gradient(to left, transparent, var(--gold)); }
+
+  h1{
+    font-family:'Bebas Neue', 'Libre Franklin', sans-serif;
+    font-weight: 400;
+    font-size: clamp(3rem, 11vw, 6.4rem);
+    letter-spacing:.05em;
+    text-transform:uppercase;
+    margin:0;
+    line-height: .95;
+    background: linear-gradient(180deg, var(--cream) 0%, var(--cream) 55%, var(--gold) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: var(--cream);
+    text-shadow: var(--shadow-glow);
+  }
+  .tagline{
+    color: var(--cream-dim);
+    margin: 16px auto 0;
+    font-size: clamp(.95rem, 2vw, 1.1rem);
+    max-width: 46ch;
+    font-weight: 400;
+  }
+
+  /* ============ Layout ============ */
+  main{
+    max-width: var(--container);
+    margin: 0 auto;
+    padding: 8px clamp(16px, 4vw, 40px) 80px;
+  }
+
+  .section{
+    margin-top: clamp(40px, 7vw, 64px);
+  }
+
+  .section-head{
+    display:flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 22px;
+    flex-wrap: wrap;
+  }
+  .section-title{
+    font-family:'Bebas Neue', sans-serif;
+    text-transform:uppercase;
+    letter-spacing:.12em;
+    font-size: clamp(1.3rem, 3vw, 1.7rem);
+    color: var(--cream);
+    margin:0;
+    display:flex;
+    align-items:center;
+    gap: 12px;
+  }
+  .section-title .reel-icon{
+    color: var(--gold);
+    font-size: .85em;
+  }
+  .section-sub{
+    color: var(--muted);
+    font-size: .9rem;
+  }
+
+  /* ============ Now Showing — poster marquee ============ */
+  .marquee{
+    display:grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: clamp(12px, 2vw, 20px);
+  }
+  .poster-card{
+    background: var(--panel);
+    border:1px solid var(--line-soft);
+    border-radius: var(--radius-md);
+    overflow:hidden;
+    cursor:pointer;
+    transition: transform .2s ease, border-color .2s ease, box-shadow .2s ease;
+    text-align:left;
+    display:flex;
+    flex-direction:column;
+  }
+  .poster-card:hover,
+  .poster-card:focus-visible{
+    transform: translateY(-6px);
+    border-color: var(--gold-dim);
+    box-shadow: var(--shadow-2);
+  }
+  .poster-art{
+    aspect-ratio: 2 / 3;
+    width:100%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size: 2.6rem;
+    position: relative;
+    overflow:hidden;
+  }
+  .poster-art img{
+    width:100%;
+    height:100%;
+    object-fit: cover;
+    display:block;
+  }
+  .poster-art .ribbon{
+    position:absolute;
+    top:10px;
+    left:-6px;
+    background: var(--marquee);
+    color:#1a1014;
+    font-family:'Bebas Neue', sans-serif;
+    letter-spacing:.08em;
+    font-size:.66rem;
+    padding: 3px 12px 3px 14px;
+    border-radius: 0 4px 4px 0;
+    box-shadow: var(--shadow-1);
+  }
+  .poster-info{
+    padding: 12px 14px 14px;
+    display:flex;
+    flex-direction:column;
+    gap: 4px;
+    flex:1;
+    min-height: 64px;
+    justify-content: space-between;
+  }
+  .poster-title{
+    font-size:.92rem;
+    font-weight:600;
+    line-height:1.3;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow:hidden;
+  }
+  .poster-genres{
+    color: var(--gold-dim);
+    font-size:.68rem;
+    text-transform:uppercase;
+    letter-spacing:.1em;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* ============ Search / box office ============ */
+  .search-panel{
+    background: linear-gradient(160deg, var(--panel) 0%, var(--panel-2) 100%);
+    border: 1px solid var(--line-soft);
+    border-radius: var(--radius-lg);
+    padding: clamp(20px, 4vw, 32px);
+    box-shadow: var(--shadow-2);
+  }
+  .search-row{
+    display:flex;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .search-field{
+    flex: 1 1 240px;
+    position: relative;
+    display:flex;
+    align-items:center;
+    background: var(--bg-soft);
+    border:1px solid var(--line);
+    border-radius: var(--radius-sm);
+    transition: border-color .15s ease, box-shadow .15s ease;
+  }
+  .search-field:focus-within{
+    border-color: var(--gold-dim);
+    box-shadow: 0 0 0 3px rgba(231,182,92,.12);
+  }
+  .search-field .icon{
+    padding-left: 16px;
+    color: var(--muted);
+    flex-shrink:0;
+    display:flex;
+  }
+  .search-field input{
+    flex:1;
+    background: transparent;
+    border:none;
+    outline:none;
+    color: var(--cream);
+    font-size:1rem;
+    font-family:'Libre Franklin', sans-serif;
+    padding: 14px 14px;
+    min-width: 0;
+  }
+  .search-field input::placeholder{ color: var(--muted); }
+
+  .btn-primary{
+    background: linear-gradient(160deg, var(--marquee), #c43d52);
+    color: #1a0f12;
+    border:none;
+    border-radius: var(--radius-sm);
+    font-family:'Bebas Neue', sans-serif;
+    letter-spacing:.1em;
+    text-transform:uppercase;
+    font-size: 1rem;
+    padding: 0 28px;
+    min-height: 50px;
+    cursor:pointer;
+    transition: filter .15s ease, transform .1s ease;
+    flex-shrink:0;
+  }
+  .btn-primary:hover{ filter: brightness(1.1); }
+  .btn-primary:active{ transform: scale(.97); }
+
+  .suggestions{
+    list-style:none;
+    margin: 16px 0 0;
+    padding:0;
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+  }
+  .suggestions-label{
+    color: var(--muted);
+    font-size:.78rem;
+    text-transform:uppercase;
+    letter-spacing:.1em;
+    margin-right: 6px;
+    align-self:center;
+  }
+  .suggestions li{
+    background: var(--bg-soft);
+    border:1px solid var(--line);
+    color: var(--cream-dim);
+    font-size:.82rem;
+    padding: 6px 13px;
+    border-radius: 999px;
+    cursor:pointer;
+    transition: color .15s ease, border-color .15s ease, background .15s ease;
+  }
+  .suggestions li:hover{
+    color: var(--gold);
+    border-color: var(--gold-dim);
+    background: rgba(231,182,92,.06);
+  }
+
+  #status{
+    color: var(--muted);
+    font-size:.92rem;
+    min-height: 1.4em;
+    margin: 20px 2px 16px;
+    font-weight: 500;
+  }
+  #status.error{ color: var(--marquee); }
+
+  /* ============ Results — ticket stubs ============ */
+  .results{
+    display:flex;
+    flex-direction:column;
+    gap: 14px;
+  }
+
+  .stub{
+    display:grid;
+    grid-template-columns: 92px 1fr;
+    background: var(--panel);
+    border: 1px solid var(--line-soft);
+    border-radius: var(--radius-md);
+    overflow:hidden;
+    position: relative;
+    animation: rise .4s cubic-bezier(.2,.7,.3,1) both;
+    transition: border-color .2s ease, transform .2s ease;
+  }
+  .stub:hover{
+    border-color: var(--gold-dim);
+    transform: translateX(2px);
+  }
+  .stub::after{
+    content:"";
+    position:absolute;
+    top:0; bottom:0;
+    left: 92px;
+    width:0;
+    border-left: 1px dashed var(--line);
+  }
+
+  .stub-poster{
+    position: relative;
+    background: var(--bg-soft);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    overflow:hidden;
+  }
+  .stub-poster img{
+    width:100%;
+    height:100%;
+    object-fit: cover;
+    display:block;
+  }
+  .stub-poster .emoji{ font-size:1.8rem; }
+  .stub-rank{
+    position:absolute;
+    top:6px;
+    left:6px;
+    background: rgba(14,13,17,.78);
+    color: var(--gold);
+    font-family:'Bebas Neue', sans-serif;
+    font-size:.78rem;
+    letter-spacing:.06em;
+    padding: 2px 7px;
+    border-radius:5px;
+    line-height:1.4;
+  }
+
+  .stub-body{
+    padding: 16px 18px;
+    display:flex;
+    flex-direction:column;
+    gap: 8px;
+    min-width:0;
+  }
+  .stub-top{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .stub-title{
+    font-family:'Bebas Neue', sans-serif;
+    font-size: clamp(1.1rem, 2.4vw, 1.35rem);
+    letter-spacing:.03em;
+    line-height: 1.2;
+  }
+  .stub-genres{
+    color: var(--gold-dim);
+    font-size:.7rem;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    font-weight: 700;
+    margin-top: 2px;
+  }
+  .stub-pct{
+    font-family:'Bebas Neue', sans-serif;
+    font-size: 1.3rem;
+    color: var(--gold);
+    flex-shrink:0;
+    line-height:1;
+  }
+  .stub-pct .unit{
+    font-size:.6em;
+    color: var(--muted);
+    margin-left: 2px;
+  }
+
+  /* Confidence bar */
+  .confidence-label{
+    display:flex;
+    justify-content:space-between;
+    font-size:.7rem;
+    color: var(--muted);
+    text-transform:uppercase;
+    letter-spacing:.1em;
+    margin-bottom:5px;
+    font-weight: 600;
+  }
+  .confidence-bar{
+    height:6px;
+    background: var(--bg-soft);
+    border-radius:999px;
+    overflow:hidden;
+    border:1px solid var(--line);
+  }
+  .confidence-fill{
+    height:100%;
+    background: linear-gradient(90deg, var(--gold-dim), var(--gold), var(--marquee-2));
+    border-radius:999px;
+    transition: width .6s cubic-bezier(.2,.7,.3,1);
+    width: 0%;
+  }
+
+  @keyframes rise{
+    from{ opacity:0; transform: translateY(10px); }
+    to{ opacity:1; transform: translateY(0); }
+  }
+
+  .empty{
+    text-align:center;
+    color: var(--muted);
+    padding: 36px 16px;
+    border:1px dashed var(--line);
+    border-radius: var(--radius-md);
+    font-size:.95rem;
+    background: var(--panel);
+  }
+  .empty strong{ color: var(--cream-dim); }
+
+  /* Skeleton loading */
+  .skeleton{
+    display:grid;
+    grid-template-columns: 92px 1fr;
+    background: var(--panel);
+    border: 1px solid var(--line-soft);
+    border-radius: var(--radius-md);
+    overflow:hidden;
+    height: 92px;
+  }
+  .skeleton .sk-block{
+    background: linear-gradient(100deg, var(--panel-2) 30%, var(--line-soft) 50%, var(--panel-2) 70%);
+    background-size: 200% 100%;
+    animation: shimmer 1.4s ease-in-out infinite;
+  }
+  .skeleton .sk-poster{ height:100%; }
+  .skeleton .sk-body{ padding: 18px; display:flex; flex-direction:column; gap:10px; justify-content:center; }
+  .skeleton .sk-line{ height:12px; border-radius:6px; }
+  .skeleton .sk-line.w1{ width: 45%; height:16px; }
+  .skeleton .sk-line.w2{ width: 28%; }
+  .skeleton .sk-line.w3{ width: 100%; height:6px; margin-top:6px; }
+  @keyframes shimmer{
+    0%{ background-position: 200% 0; }
+    100%{ background-position: -200% 0; }
+  }
+
+  /* ============ Footer ============ */
+  footer{
+    text-align:center;
+    color: var(--muted);
+    font-size:.78rem;
+    padding: 28px 20px 40px;
+    letter-spacing:.08em;
+    border-top: 1px solid var(--line-soft);
+    margin-top: 60px;
+  }
+  footer .heart{ color: var(--marquee); }
+
+  /* ============ Responsive ============ */
+  @media (max-width: 640px){
+    .stub{ grid-template-columns: 76px 1fr; }
+    .stub::after{ left: 76px; }
+    .stub-body{ padding: 12px 14px; }
+    .search-row{ flex-direction: column; }
+    .btn-primary{ width:100%; }
+    .marquee{ grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+    .skeleton{ grid-template-columns: 76px 1fr; height: 84px; }
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    html{ scroll-behavior:auto; }
+    .stub, .poster-card, .confidence-fill, .skeleton .sk-block{ animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="bulbstrip"></div>
+
+<header>
+  <div class="eyebrow">Now Screening</div>
+  <h1>Reel&nbsp;Match</h1>
+  <p class="tagline">Tell us a film you love — we'll find what's playing next on your watchlist.</p>
+</header>
+
+<main>
+
+  <section class="section" id="now-showing">
+    <div class="section-head">
+      <h2 class="section-title"><span class="reel-icon">🎬</span>Now Showing</h2>
+      <span class="section-sub">Pick a poster to find similar films</span>
+    </div>
+    <div class="marquee" id="marquee"></div>
+  </section>
+
+  <section class="section" id="find">
+    <div class="section-head">
+      <h2 class="section-title"><span class="reel-icon">🎟️</span>Find Your Next Movie</h2>
+    </div>
+
+    <div class="search-panel">
+      <div class="search-row">
+        <label class="search-field">
+          <span class="icon" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          </span>
+          <input id="titleInput" type="text" placeholder="Enter a movie title, e.g. Inception" autocomplete="off" aria-label="Movie title">
+        </label>
+        <button id="goBtn" class="btn-primary">Find Matches</button>
+      </div>
+
+      <ul class="suggestions" id="suggestions">
+        <li class="suggestions-label" style="background:none;border:none;padding:6px 0;cursor:default;">Try:</li>
+      </ul>
+    </div>
+
+    <div id="status"></div>
+
+    <div class="results" id="results"></div>
+  </section>
+
+</main>
+
+<footer>Content-based recommendations &middot; TF&#8209;IDF similarity model (.pkl) &middot; Made with <span class="heart">♥</span> for movie night</footer>
+
+<script>
+const input = document.getElementById('titleInput');
+const goBtn = document.getElementById('goBtn');
+const statusEl = document.getElementById('status');
+const resultsEl = document.getElementById('results');
+const suggestionsEl = document.getElementById('suggestions');
+const marqueeEl = document.getElementById('marquee');
+
+// Model status (logged for debugging only)
+fetch('/api/health')
+  .then(r => r.json())
+  .then(data => {
+    console.log(`Model loaded · ${data.movie_count} titles · ${data.model_source}`);
+  })
+  .catch(() => {});
+
+// "Now Showing" poster grid
+fetch('/api/featured')
+  .then(r => r.json())
+  .then(data => {
+    (data.featured || []).forEach((item, i) => renderPoster(item, i));
+  })
+  .catch(() => {});
+
+function renderPoster(item, i){
+  const card = document.createElement('button');
+  card.type = 'button';
+  card.className = 'poster-card';
+  card.setAttribute('aria-label', `See movies similar to ${item.title}`);
+  const [c1, c2] = item.poster_gradient || ['#6a6a73', '#1c1c20'];
+  const fallback = `<span>${item.poster_emoji || '🎞️'}</span>`;
+  const ribbon = i < 3 ? '<span class="ribbon">Featured</span>' : '';
+  const artInner = item.poster_url
+    ? `<img src="${escapeAttr(item.poster_url)}" alt="${escapeAttr(item.title)} poster" loading="lazy" onerror="this.parentElement.innerHTML='${fallback.replace(/'/g, "\\'")}${ribbon.replace(/'/g, "\\'")}'; this.parentElement.classList.add('emoji-fallback');">${ribbon}`
+    : fallback + ribbon;
+  card.innerHTML = `
+    <div class="poster-art ${item.poster_url ? '' : 'emoji-fallback'}" style="background: linear-gradient(160deg, ${c1}, ${c2});">
+      ${artInner}
+    </div>
+    <div class="poster-info">
+      <div class="poster-title">${escapeHtml(item.title)}</div>
+      <div class="poster-genres">${escapeHtml((item.genres || '').split(/[\s|]+/).slice(0,2).join(' · '))}</div>
+    </div>
+  `;
+  card.addEventListener('click', () => {
+    input.value = item.title;
+    getRecommendations();
+    document.getElementById('find').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+  marqueeEl.appendChild(card);
+}
+
+// Load a handful of titles as quick-pick suggestions
+fetch('/api/movies')
+  .then(r => r.json())
+  .then(data => {
+    const shuffled = [...data.movies].sort(() => Math.random() - 0.5);
+    const sample = shuffled.slice(0, 6);
+    sample.forEach(title => {
+      const li = document.createElement('li');
+      li.textContent = title;
+      li.addEventListener('click', () => {
+        input.value = title;
+        getRecommendations();
+      });
+      suggestionsEl.appendChild(li);
+    });
+  })
+  .catch(() => {});
+
+goBtn.addEventListener('click', getRecommendations);
+input.addEventListener('keydown', e => {
+  if (e.key === 'Enter') getRecommendations();
+});
+
+function showSkeletons(n){
+  resultsEl.innerHTML = '';
+  for (let i = 0; i < n; i++){
+    const sk = document.createElement('div');
+    sk.className = 'skeleton';
+    sk.innerHTML = `
+      <div class="sk-block sk-poster"></div>
+      <div class="sk-body">
+        <div class="sk-block sk-line w1"></div>
+        <div class="sk-block sk-line w2"></div>
+        <div class="sk-block sk-line w3"></div>
+      </div>
+    `;
+    resultsEl.appendChild(sk);
+  }
+}
+
+function getRecommendations(){
+  const title = input.value.trim();
+  if (!title){
+    setStatus('Type a movie title to get started.', true);
+    resultsEl.innerHTML = '';
+    return;
+  }
+  setStatus('Searching the projection room…', false);
+  showSkeletons(4);
+
+  fetch('/api/recommend?title=' + encodeURIComponent(title) + '&n=6')
+    .then(r => r.json().then(data => ({ ok: r.ok, data })))
+    .then(({ ok, data }) => {
+      if (!ok){
+        setStatus(data.error || 'Could not find that title.', true);
+        resultsEl.innerHTML = `<div class="empty">No matches for <strong>"${escapeHtml(title)}"</strong>. Try one of the suggestions above.</div>`;
+        return;
+      }
+      setStatus(`Because you liked "${escapeHtml(data.title)}" — here's what's playing next:`, false);
+      renderResults(data.recommendations);
+    })
+    .catch(() => {
+      setStatus('Something went wrong reaching the server.', true);
+      resultsEl.innerHTML = '';
+    });
+}
+
+function renderResults(items){
+  resultsEl.innerHTML = '';
+  if (!items || items.length === 0){
+    resultsEl.innerHTML = '<div class="empty">No similar titles found.</div>';
+    return;
+  }
+  items.forEach((item, i) => {
+    const stub = document.createElement('div');
+    stub.className = 'stub';
+    stub.style.animationDelay = (i * 0.05) + 's';
+    const confidence = item.confidence != null ? item.confidence : (item.score * 100);
+    const fallback = `<span class="emoji">${item.poster_emoji || '🎞️'}</span>`;
+    const [c1, c2] = item.poster_gradient || ['#6a6a73', '#1c1c20'];
+    const posterInner = item.poster_url
+      ? `<img src="${escapeAttr(item.poster_url)}" alt="${escapeAttr(item.title)} poster" loading="lazy" onerror="this.parentElement.innerHTML='${fallback.replace(/'/g, "\\'")}'; this.parentElement.style.background='linear-gradient(160deg, ${c1}, ${c2})';">`
+      : fallback;
+    stub.innerHTML = `
+      <div class="stub-poster" style="${item.poster_url ? '' : `background: linear-gradient(160deg, ${c1}, ${c2});`}">
+        ${posterInner}
+        <span class="stub-rank">#${i + 1}</span>
+      </div>
+      <div class="stub-body">
+        <div class="stub-top">
+          <div>
+            <div class="stub-title">${escapeHtml(item.title)}</div>
+            <div class="stub-genres">${escapeHtml(item.genres)}</div>
+          </div>
+          <div class="stub-pct">${confidence.toFixed(0)}<span class="unit">% match</span></div>
+        </div>
+        <div class="confidence">
+          <div class="confidence-label">
+            <span>Match Confidence</span>
+            <span>${confidence.toFixed(1)}%</span>
+          </div>
+          <div class="confidence-bar">
+            <div class="confidence-fill" data-width="${Math.max(2, Math.min(100, confidence))}"></div>
+          </div>
+        </div>
+      </div>
+    `;
+    resultsEl.appendChild(stub);
+  });
+
+  // Animate confidence bars in after insertion
+  requestAnimationFrame(() => {
+    resultsEl.querySelectorAll('.confidence-fill').forEach(el => {
+      el.style.width = el.dataset.width + '%';
+    });
+  });
+}
+
+function setStatus(msg, isError){
+  statusEl.textContent = msg;
+  statusEl.className = isError ? 'error' : '';
+}
+
+function escapeHtml(str){
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function escapeAttr(str){
+  return String(str).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+</script>
+
+</body>
+</html>

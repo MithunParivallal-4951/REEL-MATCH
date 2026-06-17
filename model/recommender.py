@@ -18,12 +18,11 @@ import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
-from flask import Flask, jsonify, request, abort, send_from_directory, render_template
 from model.posters import get_poster_url, prefetch_posters
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_PATH = os.path.join(BASE_DIR, "data", "movies.csv")
-MODEL_PATH = os.path.join(BASE_DIR, "model", "movie_recommender.pkl")
+DATA_PATH = os.path.join(BASE_DIR, "..", "data", "movies.csv")
+MODEL_PATH = os.path.join(BASE_DIR, "movie_recommender.pkl")
 
 
 # Simple genre -> (emoji, gradient) theme used to render a "poster" for
@@ -194,52 +193,3 @@ class MovieRecommender:
 
 # Singleton instance used by the Flask app
 recommender = MovieRecommender()
-
-app = Flask(__name__, template_folder="templates")
-
-@app.route("/")
-def home():
-    return render_template("index.html")
-
-@app.route("/api/health")
-def api_health():
-    return jsonify(
-        status="ok",
-        model_loaded=recommender.df is not None,
-        model_source=recommender.model_source,
-        movie_count=len(recommender.df) if recommender.df is not None else 0,
-    )
-
-@app.route("/api/movies")
-def api_movies():
-    return jsonify(movies=recommender.get_all_titles())
-
-@app.route("/api/featured")
-def api_featured():
-    return jsonify(featured=recommender.get_featured())
-
-@app.route("/api/search")
-def api_search():
-    query = request.args.get("q", "").strip()
-    if not query:
-        return jsonify(results=[])
-    return jsonify(results=recommender.search_titles(query, limit=10))
-
-@app.route("/api/recommend")
-def api_recommend():
-    title = request.args.get("title", "").strip()
-    if not title:
-        return jsonify(error="Missing title parameter."), 400
-    try:
-        top_n = int(request.args.get("n", 5))
-    except ValueError:
-        top_n = 5
-    try:
-        recommendations = recommender.recommend(title, top_n=top_n)
-    except ValueError as exc:
-        return jsonify(error=str(exc)), 404
-    return jsonify(title=title, recommendations=recommendations)
-
-if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=5000)
-
